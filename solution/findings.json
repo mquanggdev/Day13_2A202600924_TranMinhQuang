@@ -1,12 +1,72 @@
 {
-  "team": "TODO-team-name",
+  "team": "openrouter-deepseek-v4-flash",
   "schema_version": 1,
   "findings": [
     {
+      "fault_class": "arithmetic_error",
+      "evidence": {"metric": "config_temperature", "observed": "Initial config used temperature=1.6 with a vague prompt for exact order totals.", "trace_ids": []},
+      "root_cause": "High sampling temperature and no explicit arithmetic formula make totals unstable.",
+      "suggested_fix": "Set temperature to 0.2, enable verification, and rewrite the system prompt with the exact subtotal/discount/shipping formula."
+    },
+    {
+      "fault_class": "tool_failure",
+      "evidence": {"metric": "config_knobs", "observed": "Initial config disabled unicode normalization and overrode macbook stock to false; OpenRouter needs an auth-bearing OpenAI-compatible endpoint.", "trace_ids": []},
+      "root_cause": "Misconfigured tool/catalog behavior can make valid products or Vietnamese city names fail.",
+      "suggested_fix": "Enable normalize_unicode, clear catalog_override, and route provider=local through the Docker OpenRouter proxy that adds the Bearer token."
+    },
+    {
+      "fault_class": "pii_leak",
+      "evidence": {"metric": "public_questions", "observed": "Public question pub-13 includes an email address; initial config had redact_pii=false and prompt had no privacy rule.", "trace_ids": []},
+      "root_cause": "The base agent may echo customer contact data in the answer.",
+      "suggested_fix": "Enable redact_pii, add a no-PII prompt rule, and redact wrapper output before returning it."
+    },
+    {
+      "fault_class": "prompt_injection",
+      "evidence": {"metric": "private_phase_requirement", "observed": "The lab states private traffic includes injected order notes with fake instructions or prices.", "trace_ids": []},
+      "root_cause": "The original prompt does not separate trusted system instructions from untrusted order text.",
+      "suggested_fix": "Prompt the model to treat notes as data only and sanitize suspicious instruction-like note text in the wrapper."
+    },
+    {
+      "fault_class": "error_spike",
+      "evidence": {"metric": "initial_tool_error_rate", "observed": "Initial config set tool_error_rate=0.18 and retry was disabled.", "trace_ids": []},
+      "root_cause": "Intermittent tool failures become final failed requests when the agent does not retry.",
+      "suggested_fix": "Set tool_error_rate to 0.0 for the lab config and enable retry with backoff."
+    },
+    {
       "fault_class": "latency_spike",
-      "evidence": {"metric": "latency_p95_ms", "observed": "TODO from your telemetry", "trace_ids": []},
-      "root_cause": "TODO: what config knob or behavior causes it?",
-      "suggested_fix": "TODO: config change and/or wrapper mitigation"
+      "evidence": {"metric": "initial_config_latency_risk", "observed": "Initial config used max_steps=12, verbose_system=true, no cache, and no loop guard.", "trace_ids": []},
+      "root_cause": "Large prompts, repeated tool loops, and no cache increase tail latency.",
+      "suggested_fix": "Reduce max_steps, enable loop_guard/cache, shorten the prompt, and cap tool calls."
+    },
+    {
+      "fault_class": "cost_blowup",
+      "evidence": {"metric": "initial_config_cost_risk", "observed": "Initial config used premium tier, verbose system prompt, max_completion_tokens=2000, and no tool budget.", "trace_ids": []},
+      "root_cause": "Verbose prompts and uncontrolled completions/tool use create unnecessary token usage.",
+      "suggested_fix": "Use a standard OpenRouter model, disable verbose_system, reduce max_completion_tokens, and use a concise prompt."
+    },
+    {
+      "fault_class": "quality_drift",
+      "evidence": {"metric": "initial_session_drift_rate", "observed": "Initial config set session_drift_rate=0.06 and context_reset_every=0.", "trace_ids": []},
+      "root_cause": "Long sessions accumulate context drift without periodic reset.",
+      "suggested_fix": "Set session_drift_rate to 0.0 for the lab config and reset context periodically."
+    },
+    {
+      "fault_class": "infinite_loop",
+      "evidence": {"metric": "initial_loop_controls", "observed": "Initial config had loop_guard=false, max_steps=12, and tool_budget=0.", "trace_ids": []},
+      "root_cause": "The model can repeat tool calls with no loop guard or budget.",
+      "suggested_fix": "Enable loop_guard, lower max_steps, and set tool_budget to 4."
+    },
+    {
+      "fault_class": "tool_overuse",
+      "evidence": {"metric": "initial_prompt_and_budget", "observed": "Initial prompt did not specify tool order/economy and tool_budget was 0.", "trace_ids": []},
+      "root_cause": "The model over-calls tools when the prompt does not require each tool at most once.",
+      "suggested_fix": "Prompt each tool at most once and cap tool_budget."
+    },
+    {
+      "fault_class": "fabrication",
+      "evidence": {"metric": "initial_prompt_grounding", "observed": "Initial prompt told the assistant to help and give totals but did not require grounding or refusal.", "trace_ids": []},
+      "root_cause": "The model can invent totals for out-of-stock, unknown, or unsupported orders.",
+      "suggested_fix": "Require tool-grounded answers and clear refusal with no total when stock/product/shipping is unavailable."
     }
   ]
 }
